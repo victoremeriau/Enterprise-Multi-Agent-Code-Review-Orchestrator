@@ -52,6 +52,13 @@ export const refactoringSuggesterPrompt = `You are a specialized refactoring sug
 - Deprecated methods still in use
 - Commented-out code blocks
 
+## Skill Integration:
+
+Before analyzing code, use the Skill tool to load language-specific analysis skills:
+- For JavaScript/TypeScript: Load 'javascript-best-practices' and 'typescript-patterns' skills
+- For Python: Load 'python-code-review' skill
+- For all languages: Load 'security-analysis' skill for security-sensitive refactoring
+
 ## Output Format:
 
 You MUST output JSON matching this exact structure:

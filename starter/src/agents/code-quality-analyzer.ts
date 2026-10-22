@@ -1,4 +1,5 @@
 import { AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
+import { codeQualityAnalyzerPrompt } from '../prompts/index.js';
 
 /**
  * Code Quality Analyzer Agent
@@ -8,5 +9,7 @@ import { AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
  */
 export const codeQualityAnalyzerAgent: AgentDefinition = {
   description: 'Analyzes code for security vulnerabilities, performance issues, and maintainability concerns. Uses static analysis and best practice evaluation to identify critical quality issues.',
-  prompt: 'Analyze the provided code files for security vulnerabilities, performance issues, and maintainability concerns. Provide detailed findings with specific line numbers and severity levels.'
+  prompt: codeQualityAnalyzerPrompt,
+  model: 'inherit',
+  tools: ['Skill']
 };

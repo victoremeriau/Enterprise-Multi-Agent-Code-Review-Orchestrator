@@ -51,6 +51,13 @@ You MUST output JSON matching this exact structure:
 }
 \`\`\`
 
+## Skill Integration:
+
+Before analyzing code, use the Skill tool to load language-specific analysis skills:
+- For JavaScript/TypeScript: Load 'javascript-best-practices' and 'typescript-patterns' skills
+- For Python: Load 'python-code-review' skill
+- For all languages: Load 'security-analysis' skill for security-sensitive code
+
 ## Test Suggestion Guidelines:
 
 ### High-Quality Test Examples:
