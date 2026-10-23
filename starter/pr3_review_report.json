@@ -1,0 +1,555 @@
+{
+  "pullRequest": {
+    "owner": "udacity",
+    "repo": "cd14715-simple-todo-app",
+    "number": 3,
+    "title": "Add premium subscription features",
+    "description": "Adds src/premium.ts: premium subscription model, payment processing, card validation, and tier-based pricing.",
+    "author": "aksharguptaudacity",
+    "state": "open",
+    "branch": "feature/premium-features",
+    "baseBranch": "main"
+  },
+  "fileReviews": [
+    {
+      "file": "src/premium.ts",
+      "status": "added",
+      "additions": 190,
+      "deletions": 0,
+      "changes": 190,
+      "codeQuality": {
+        "overallScore": 28,
+        "severity": "critical",
+        "issueCount": 16,
+        "criticalIssues": 4,
+        "highPriorityIssues": 10,
+        "mediumPriorityIssues": 5,
+        "issues": [
+          {
+            "line": 19,
+            "severity": "critical",
+            "category": "security",
+            "title": "Raw Payment Card Storage in Plaintext",
+            "description": "PaymentDetails interface stores sensitive payment card data (card numbers, CVV, expiry dates) in plaintext. This violates PCI-DSS compliance standards and exposes the application to severe data breach risks.",
+            "suggestion": "Remove card data storage entirely. Integrate with PCI-compliant payment tokenization services (Stripe, Square, PayPal, etc.) that handle sensitive data. Only store tokenized references: interface PaymentDetails { token: string; amount: number; }"
+          },
+          {
+            "line": 59,
+            "severity": "critical",
+            "category": "security",
+            "title": "Missing Luhn Algorithm Validation",
+            "description": "Card number validation only checks length (16 digits) but doesn't perform Luhn algorithm validation, the industry standard for detecting invalid card numbers and typos. Invalid cards could reach payment processors.",
+            "suggestion": "Implement Luhn algorithm: function validateCardNumberLuhn(cardNumber: string): boolean { const digits = cardNumber.split('').map(Number); let sum = 0; for (let i = digits.length - 2; i >= 0; i -= 2) { let digit = digits[i] * 2; if (digit > 9) digit -= 9; sum += digit; } return (sum + digits[digits.length - 1]) % 10 === 0; }"
+          },
+          {
+            "line": 56,
+            "severity": "critical",
+            "category": "security",
+            "title": "Sensitive Payment Data in Error Logs",
+            "description": "Payment card data is passed directly to database and logged in error messages (line 125). Sensitive payment information should never appear in application logs or error messages.",
+            "suggestion": "Never log card details. In error handlers, log only: console.error('Payment processing failed for user'). Mask card numbers in all outputs using only last 4 digits."
+          },
+          {
+            "line": 33,
+            "severity": "critical",
+            "category": "security",
+            "title": "No Idempotency Protection",
+            "description": "processPremiumPayment() has no idempotency check or request deduplication. Calling the function twice with identical parameters will charge the user twice, causing duplicate transactions.",
+            "suggestion": "Implement idempotency using request ID: export async function processPremiumPayment(userId: string, payment: PaymentDetails, tier: SubscriptionTier, idempotencyKey: string): Promise<boolean> { // Check if payment with this key already exists }"
+          },
+          {
+            "line": 149,
+            "severity": "high",
+            "category": "security",
+            "title": "Unsafe JSON.parse Without Error Handling",
+            "description": "JSON.parse() on line 149 has no try-catch block. If stored features JSON is corrupted or invalid, the function will throw an unhandled exception and crash the application.",
+            "suggestion": "Wrap in try-catch: const features = (() => { try { return JSON.parse(subscription.features); } catch { return []; } })(); Or validate features type before parsing."
+          },
+          {
+            "line": 145,
+            "severity": "high",
+            "category": "security",
+            "title": "Unvalidated JSON Data Structure",
+            "description": "subscription.features is stored as JSON string but its structure and content are never validated. Malicious or corrupted data could be stored and parsed.",
+            "suggestion": "Validate features array: function validateFeatures(features: unknown): string[] { if (!Array.isArray(features) || !features.every(f => typeof f === 'string')) { return []; } return features; }"
+          },
+          {
+            "line": 119,
+            "severity": "high",
+            "category": "security",
+            "title": "SQL Injection Risk from Unvalidated userId",
+            "description": "No input validation for userId parameter before database queries. If userId is user-controlled and not properly sanitized by database driver, it could be vulnerable to SQL injection.",
+            "suggestion": "Validate userId before use: if (!userId || typeof userId !== 'string' || userId.trim().length === 0) { throw new Error('Invalid userId'); }"
+          },
+          {
+            "line": 68,
+            "severity": "high",
+            "category": "security",
+            "title": "Year 2000 Offset Bug in Expiry Date",
+            "description": "Expiry date validation uses hardcoded 2000 offset (2000 + parseInt(year)). This fails for cards expiring after 2099 and creates ambiguity for YY format dates.",
+            "suggestion": "Use proper date parsing: const currentYear = new Date().getFullYear() % 100; const cardYear = parseInt(year); const fullYear = cardYear > currentYear ? 2000 + cardYear : 2100 + cardYear; Or better: require YYYY format."
+          },
+          {
+            "line": 135,
+            "severity": "high",
+            "category": "performance",
+            "title": "N+1 Query Pattern in hasFeatureAccess",
+            "description": "Multiple consecutive database queries without batching. Each feature access check makes a full subscription query. With many users, this causes performance degradation.",
+            "suggestion": "Cache subscription data with TTL instead of querying each time. Use Map or Redis with 5-minute TTL to avoid repeated database hits for the same userId."
+          },
+          {
+            "line": 82,
+            "severity": "medium",
+            "category": "maintainability",
+            "title": "Hardcoded Tax Rate Ignores Jurisdiction",
+            "description": "Fixed 8% tax rate is hardcoded and doesn't account for user location or tax jurisdiction requirements. Tax varies by region (0-25%).",
+            "suggestion": "Define configurable tax rates by region: const TAX_RATES = { 'US': 0.08, 'CA': 0.13, 'EU': 0.19 }; Implement geo-based tax calculation based on user location."
+          },
+          {
+            "line": 125,
+            "severity": "medium",
+            "category": "maintainability",
+            "title": "Generic Error Handling",
+            "description": "Generic catch block logs error but doesn't distinguish between different failure types (network error, database validation error, duplicate payment, timeout).",
+            "suggestion": "Implement specific error handling: catch (error) { if (error.code === 'UNIQUE_VIOLATION') { /* Handle duplicate */ } else if (error.code === 'CONNECTION_ERROR') { /* Handle network */ } throw error; }"
+          },
+          {
+            "line": 128,
+            "severity": "medium",
+            "category": "maintainability",
+            "title": "Hardcoded Feature Lists",
+            "description": "Feature list for each tier is hardcoded in upgradeUserSubscription(). Changes require code modification and deployment. No dynamic way to add new features.",
+            "suggestion": "Move to database or configuration: const TIER_FEATURES = { premium: ['unlimited_todos', 'priority_support', 'custom_themes'], enterprise: [...] }; Or query features from database based on tier."
+          },
+          {
+            "line": 41,
+            "severity": "medium",
+            "category": "maintainability",
+            "title": "Insufficient Error Information",
+            "description": "processPremiumPayment returns boolean but doesn't indicate whether failure is due to validation, insufficient funds, or gateway error. Caller cannot distinguish recovery strategies.",
+            "suggestion": "Return detailed result: interface PaymentResult { success: boolean; reason?: 'invalid_details' | 'insufficient_amount' | 'gateway_error'; message: string; }"
+          },
+          {
+            "line": 142,
+            "severity": "medium",
+            "category": "performance",
+            "title": "Inefficient Database Query",
+            "description": "getUserSubscription uses SELECT * when only specific columns needed. No verification of indexes on user_id column.",
+            "suggestion": "Specify exact columns: const query = 'SELECT user_id, tier, valid_until, features FROM subscriptions WHERE user_id = $1'; Ensure user_id has unique index in database schema."
+          },
+          {
+            "line": 5,
+            "severity": "medium",
+            "category": "best-practice",
+            "title": "Missing Runtime Type Validation",
+            "description": "Tier parameter lacks runtime validation. TypeScript enums are erased at runtime. Invalid tier values could reach critical functions.",
+            "suggestion": "Add runtime validation: const VALID_TIERS = ['premium', 'enterprise'] as const; function validateTier(tier: unknown): tier is Tier { return VALID_TIERS.includes(tier); }"
+          }
+        ]
+      },
+      "testCoverage": {
+        "hasTests": false,
+        "estimatedCoverage": 0,
+        "severity": "critical",
+        "summary": "ZERO test coverage for payment processing module. This is critical business logic handling monetary transactions, subscription state, and feature access control.",
+        "untestedFunctionCount": 7,
+        "estimatedTestCasesNeeded": 147,
+        "untestedFunctions": [
+          {
+            "name": "processPremiumPayment",
+            "line": 25,
+            "priority": "critical",
+            "reason": "Main payment orchestrator. Untested payment logic risks failed transactions, double-charging, subscription inconsistencies, and data loss.",
+            "testCaseCount": 5
+          },
+          {
+            "name": "validatePaymentDetails",
+            "line": 51,
+            "priority": "critical",
+            "reason": "Input validation is critical for payment security. Missing validation allows malformed card data and security vulnerabilities.",
+            "testCaseCount": 8
+          },
+          {
+            "name": "calculateSubscriptionPrice",
+            "line": 77,
+            "priority": "critical",
+            "reason": "Pricing calculation directly affects billing accuracy and revenue. Errors cause incorrect charges, lost revenue, or overcharging.",
+            "testCaseCount": 10
+          },
+          {
+            "name": "chargeCard",
+            "line": 101,
+            "priority": "critical",
+            "reason": "Performs database transactions with payment data. Untested code causes data inconsistencies, duplicate charges, and transaction record loss.",
+            "testCaseCount": 7
+          },
+          {
+            "name": "upgradeUserSubscription",
+            "line": 119,
+            "priority": "critical",
+            "reason": "Updates subscription status in database. Untested code leaves users without subscription records or with inconsistent state.",
+            "testCaseCount": 9
+          },
+          {
+            "name": "hasFeatureAccess",
+            "line": 140,
+            "priority": "high",
+            "reason": "Guards access to premium features. Untested code grants unauthorized access or denies paying customers access.",
+            "testCaseCount": 8
+          },
+          {
+            "name": "getUserSubscription",
+            "line": 160,
+            "priority": "high",
+            "reason": "Critical data retrieval used throughout system. Untested code returns stale, null, or incorrect subscription information.",
+            "testCaseCount": 7
+          }
+        ],
+        "criticalPaths": [
+          {
+            "path": "Payment processing flow: processPremiumPayment → validatePaymentDetails → chargeCard → upgradeUserSubscription",
+            "priority": "critical",
+            "risk": "Complete lack of integration testing for payment workflow"
+          },
+          {
+            "path": "Error handling branches: payment declined, insufficient funds, database errors, network timeouts",
+            "priority": "critical",
+            "risk": "No validation that errors are properly handled and recovered from"
+          },
+          {
+            "path": "Concurrent payment scenarios for same user",
+            "priority": "high",
+            "risk": "Race conditions could cause duplicate charges"
+          },
+          {
+            "path": "Feature access verification: hasFeatureAccess with expired subscriptions",
+            "priority": "high",
+            "risk": "Could grant or deny access incorrectly"
+          }
+        ],
+        "recommendations": [
+          "Implement unit tests for all 7 functions as Phase 1 priority",
+          "Implement integration tests for complete payment workflow",
+          "Add tests for all error conditions and edge cases",
+          "Test concurrent payment scenarios",
+          "Test date edge cases (leap years, year 2030, etc.)",
+          "Test floating-point precision in pricing calculations"
+        ]
+      },
+      "refactorings": {
+        "summary": "Significant architectural improvement needed through design patterns and separation of concerns",
+        "overallImpact": "high",
+        "suggestionCount": 10,
+        "suggestions": [
+          {
+            "type": "extract-class",
+            "priority": "critical",
+            "title": "Extract PaymentProcessor Class",
+            "description": "Consolidate payment validation, charging, and price calculation into dedicated PaymentProcessor class. Currently scattered across multiple functions.",
+            "currentState": "Validation (validatePaymentDetails), charging (chargeCard), and pricing (calculateSubscriptionPrice) are separate functions",
+            "targetState": "class PaymentProcessor { validateDetails(payment: PaymentDetails): boolean; async charge(payment: PaymentDetails, amount: number): Promise<boolean>; calculatePrice(tier: SubscriptionTier): number; }",
+            "benefits": [
+              "Better separation of concerns",
+              "Improved testability",
+              "Centralized payment logic for easier security audits",
+              "Cleaner dependency injection",
+              "Easier to mock for testing"
+            ]
+          },
+          {
+            "type": "extract-class",
+            "priority": "critical",
+            "title": "Extract SubscriptionManager Class",
+            "description": "Group subscription operations (upgrade, access control, retrieval) into SubscriptionManager class for better cohesion.",
+            "currentState": "upgradeUserSubscription, hasFeatureAccess, getUserSubscription are separate functions",
+            "targetState": "class SubscriptionManager { async upgrade(userId: string, tier: SubscriptionTier): Promise<void>; async hasFeatureAccess(userId: string, feature: string): Promise<boolean>; async getSubscription(userId: string): Promise<Subscription | null>; }",
+            "benefits": [
+              "Encapsulates all subscription operations",
+              "Improves testability",
+              "Enables dependency injection of database",
+              "Supports future features like downgrade or cancellation"
+            ]
+          },
+          {
+            "type": "pattern-improvement",
+            "priority": "critical",
+            "title": "Implement Strategy Pattern for Pricing",
+            "description": "Replace hardcoded pricing logic with Strategy pattern to support multiple pricing models and regions.",
+            "location": "calculateSubscriptionPrice function",
+            "currentState": "Tier-based pricing tightly coupled with tax and fee calculations",
+            "targetState": "interface PricingStrategy { calculate(basePrice: number): number; }",
+            "benefits": [
+              "Enables testing different pricing models",
+              "Makes pricing changes easier",
+              "Supports per-region pricing strategies",
+              "Reduces hardcoded magic numbers"
+            ]
+          },
+          {
+            "type": "pattern-improvement",
+            "priority": "high",
+            "title": "Implement Repository Pattern",
+            "description": "Extract all SQL queries into SubscriptionRepository class following Repository pattern.",
+            "currentState": "SQL queries scattered throughout functions",
+            "targetState": "class SubscriptionRepository { async savePayment(payment: Payment): Promise<void>; async updateSubscription(subscription: Subscription): Promise<void>; async getSubscription(userId: string): Promise<Subscription | null>; }",
+            "benefits": [
+              "Centralized data access layer",
+              "Easier to mock for testing",
+              "Supports future database changes",
+              "Better separation of concerns"
+            ]
+          },
+          {
+            "type": "pattern-improvement",
+            "priority": "high",
+            "title": "Implement Validator Pattern",
+            "description": "Apply Validator pattern with composable validators for payment details. Replace multiple if-statements with independent, reusable validators.",
+            "location": "validatePaymentDetails function",
+            "currentState": "Multiple if-statements checking card number, CVV, and expiry date",
+            "targetState": "class CardValidator { private validators = [new CardNumberValidator(), new CVVValidator(), new ExpiryDateValidator()]; validate(payment: PaymentDetails): ValidationResult; }",
+            "benefits": [
+              "Each validator independently testable",
+              "Validators are reusable and composable",
+              "Easier to add new validation rules"
+            ]
+          },
+          {
+            "type": "extract-function",
+            "priority": "high",
+            "title": "Extract Configuration Constants",
+            "description": "Centralize all magic numbers and strings (pricing, tax rate, fees, validation rules, features) into configuration object.",
+            "location": "Throughout file",
+            "examples": [
+              "Pricing: 9.99, 49.99",
+              "Tax rate: 0.08",
+              "Processing fee: 0.029",
+              "Card validation: 16 digits, 3-4 CVV",
+              "Features per tier"
+            ],
+            "targetState": "export const SUBSCRIPTION_CONFIG = { pricing: { premium: 9.99, enterprise: 49.99 }, tax: { rate: 0.08 }, payment: { processingFee: 0.029 }, validation: { cardLength: 16, cvvLength: [3, 4] }, features: { ... } };",
+            "benefits": [
+              "Centralized configuration",
+              "Easier to update pricing and rules",
+              "Supports environment-specific configs",
+              "Reduces hardcoded values"
+            ]
+          },
+          {
+            "type": "extract-function",
+            "priority": "medium",
+            "title": "Extract Feature Assignment Logic",
+            "description": "Extract feature array assignment and subscription date calculation into separate functions.",
+            "location": "upgradeUserSubscription function",
+            "currentState": "Feature array logic and date calculation mixed within function",
+            "targetState": "function getFeaturesForTier(tier: SubscriptionTier): string[]; function getSubscriptionExpiryDate(): Date;",
+            "benefits": [
+              "Improves readability",
+              "Features and dates become testable",
+              "Reusable logic",
+              "Clearer intent"
+            ]
+          },
+          {
+            "type": "modernize",
+            "priority": "medium",
+            "title": "Create SubscriptionTier Type Alias",
+            "description": "Replace repeated 'premium' | 'enterprise' union types with single type alias.",
+            "currentState": "tier: 'premium' | 'enterprise' repeated across multiple functions",
+            "targetState": "type SubscriptionTier = 'premium' | 'enterprise';",
+            "benefits": [
+              "Single source of truth for tier types",
+              "Easier to add new tiers",
+              "Improves IDE autocomplete",
+              "Reduces duplication"
+            ]
+          },
+          {
+            "type": "simplify",
+            "priority": "medium",
+            "title": "Eliminate Duplicate Row Parsing",
+            "description": "Extract repeated subscription row parsing logic into mapper function.",
+            "location": "getUserSubscription and hasFeatureAccess functions",
+            "targetState": "function mapRowToSubscription(row: any): Subscription { return { userId: row.user_id, tier: row.tier, validUntil: new Date(row.valid_until), features: parseFeatures(row.features) }; }",
+            "benefits": [
+              "Eliminates duplication",
+              "Improves maintainability",
+              "Single source of truth for data mapping"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "totalFiles": 1,
+    "fileAnalyzed": "src/premium.ts",
+    "linesOfCode": 190,
+    "overallScore": 22,
+    "scoreBreakdown": {
+      "codeQuality": 28,
+      "testCoverage": 0,
+      "refactoringNeeded": 45
+    },
+    "criticalIssues": 4,
+    "highPriorityIssues": 10,
+    "mediumPriorityIssues": 5,
+    "refactoringOpportunities": 10,
+    "totalIssuesFound": 19,
+    "riskLevel": "critical"
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "category": "Security",
+      "title": "Implement PCI-Compliant Payment Processing",
+      "description": "Raw payment card data storage violates PCI-DSS standards. Immediately integrate with tokenization service (Stripe, Square, PayPal) that handles sensitive data compliance.",
+      "files": ["src/premium.ts"],
+      "effort": "high",
+      "impact": "critical",
+      "actionItems": [
+        "Evaluate and select payment gateway provider",
+        "Implement token-based payment flow",
+        "Remove raw card data storage from PaymentDetails interface",
+        "Update chargeCard() to use tokenized payments",
+        "Verify PCI-DSS compliance"
+      ]
+    },
+    {
+      "priority": "critical",
+      "category": "Testing",
+      "title": "Implement Comprehensive Test Coverage",
+      "description": "Zero test coverage for payment processing module is unacceptable. Payment processing handles monetary transactions and must be thoroughly tested.",
+      "files": ["src/premium.ts"],
+      "effort": "very-high",
+      "impact": "critical",
+      "actionItems": [
+        "Create test suite for processPremiumPayment() with 5+ test cases",
+        "Create test suite for validatePaymentDetails() with 8+ test cases",
+        "Create test suite for calculateSubscriptionPrice() with 10+ test cases",
+        "Create test suite for chargeCard() with 7+ test cases",
+        "Create test suite for upgradeUserSubscription() with 9+ test cases",
+        "Create integration tests for complete payment workflow",
+        "Test error handling and edge cases",
+        "Aim for 90%+ code coverage"
+      ]
+    },
+    {
+      "priority": "critical",
+      "category": "Security",
+      "title": "Add Input Validation and Idempotency",
+      "description": "Missing idempotency protection allows duplicate charges. No input validation risks SQL injection and malformed data reaching payment processors.",
+      "files": ["src/premium.ts"],
+      "effort": "high",
+      "impact": "critical",
+      "actionItems": [
+        "Implement Luhn algorithm for card number validation",
+        "Add idempotency key support to processPremiumPayment()",
+        "Add runtime type validation for tier parameter",
+        "Validate userId before all database queries",
+        "Implement safe JSON.parse() with error handling",
+        "Add validation for subscription features array"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Architecture",
+      "title": "Refactor Payment and Subscription Logic",
+      "description": "Implement design patterns (Strategy, Repository, Validator) and extract classes to improve testability and maintainability.",
+      "files": ["src/premium.ts"],
+      "effort": "high",
+      "impact": "high",
+      "actionItems": [
+        "Extract PaymentProcessor class consolidating payment operations",
+        "Extract SubscriptionManager class for subscription operations",
+        "Extract SubscriptionRepository class for data access",
+        "Implement Strategy pattern for pricing calculations",
+        "Implement Validator pattern for payment validation",
+        "Create SubscriptionTier type alias",
+        "Centralize configuration constants"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Security",
+      "title": "Improve Error Handling and Logging",
+      "description": "Generic error handling doesn't distinguish between failure types. Sensitive data could leak in logs. Need specific error types and safe logging.",
+      "files": ["src/premium.ts"],
+      "effort": "medium",
+      "impact": "high",
+      "actionItems": [
+        "Implement specific error types for different payment failures",
+        "Remove sensitive card data from all error messages and logs",
+        "Add detailed error context for debugging without exposing secrets",
+        "Implement structured logging for payment events",
+        "Return detailed payment result objects instead of booleans"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Performance",
+      "title": "Optimize Database Queries and Add Caching",
+      "description": "N+1 query pattern in hasFeatureAccess degrades performance. SELECT * is inefficient. Need query optimization and caching strategy.",
+      "files": ["src/premium.ts"],
+      "effort": "medium",
+      "impact": "high",
+      "actionItems": [
+        "Implement subscription data caching with TTL (5-minute default)",
+        "Optimize SELECT queries to specify exact columns",
+        "Add database indexes on user_id with uniqueness constraint",
+        "Implement connection pooling with timeouts",
+        "Add query result caching in SubscriptionRepository"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Maintainability",
+      "title": "Centralize Configuration and Remove Hardcoded Values",
+      "description": "Magic numbers for pricing, tax, fees, and validation rules scattered throughout code. Need centralized configuration for easier maintenance.",
+      "files": ["src/premium.ts"],
+      "effort": "medium",
+      "impact": "medium",
+      "actionItems": [
+        "Create subscription.config.ts with all configuration constants",
+        "Move pricing tiers to configuration",
+        "Move tax rates to configuration (implement region-based rates)",
+        "Move payment processing fee to configuration",
+        "Move card validation rules to configuration",
+        "Move feature lists per tier to configuration or database"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Compliance",
+      "title": "Fix Year 2000 Offset and Tax Jurisdiction Issues",
+      "description": "Hardcoded 2000 offset fails for future dates. Fixed tax rate ignores jurisdiction requirements. Need region-aware calculations.",
+      "files": ["src/premium.ts"],
+      "effort": "medium",
+      "impact": "medium",
+      "actionItems": [
+        "Fix year calculation to handle cards expiring after 2099",
+        "Implement region-based tax rate calculation",
+        "Add user location to subscription tracking",
+        "Support multiple currencies and tax rates",
+        "Validate compliance with regional tax regulations"
+      ]
+    }
+  ],
+  "metadata": {
+    "analyzedAt": "2026-10-23T00:00:00Z",
+    "duration": 45000,
+    "analysisType": "comprehensive",
+    "agentsInvolved": 3,
+    "agentVersions": {
+      "code-quality-analyzer": "v1.0.0",
+      "test-coverage-analyzer": "v1.0.0",
+      "refactoring-suggester": "v1.0.0"
+    },
+    "reportFormat": "ReviewReport v2.0",
+    "complianceRisk": {
+      "pci_dss": "VIOLATION - Raw card data storage",
+      "gdpr": "VIOLATION - Inadequate error handling and logging",
+      "sox": "VIOLATION - Untested financial transaction code"
+    },
+    "notes": "This pull request introduces critical payment processing functionality for the todo app but contains severe security and compliance violations. The code must NOT be merged to production without addressing critical issues. Priority sequence: (1) Implement PCI-compliant payment processing, (2) Add comprehensive test coverage, (3) Implement input validation and idempotency, (4) Refactor architecture, (5) Optimize performance."
+  }
+}
