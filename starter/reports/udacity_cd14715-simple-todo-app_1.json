@@ -1,0 +1,129 @@
+{
+  "pullRequest": {
+    "owner": "udacity",
+    "repo": "cd14715-simple-todo-app",
+    "number": 1
+  },
+  "fileReviews": [
+    {
+      "file": "fixtures/clean-code.ts",
+      "codeQuality": {
+        "issues": [
+          {
+            "line": 15,
+            "severity": "high",
+            "category": "security",
+            "description": "Email validation using regex pattern could be bypassed with certain Unicode characters",
+            "suggestion": "Use a library like `email-validator` or implement RFC 5322 compliant validation"
+          },
+          {
+            "line": 28,
+            "severity": "medium",
+            "category": "maintainability",
+            "description": "Function `sanitizeInput` is too long (45 lines) and handles multiple concerns",
+            "suggestion": "Extract regex patterns and validation logic into separate utility functions"
+          },
+          {
+            "line": 38,
+            "severity": "low",
+            "category": "best-practice",
+            "description": "Using `any` type for user input parameter reduces type safety",
+            "suggestion": "Define and use a proper `UserInput` interface with strict typing"
+          }
+        ],
+        "overallScore": 72
+      },
+      "testCoverage": {
+        "untestedPaths": [
+          {
+            "type": "function",
+            "location": "sanitizeInput at line 28",
+            "priority": "critical",
+            "reasoning": "Security-critical function with no test coverage for edge cases",
+            "suggestedTest": "Test XSS payloads, SQL injection attempts, and Unicode bypass attempts"
+          },
+          {
+            "type": "edge-case",
+            "location": "validateEmail at line 10",
+            "priority": "high",
+            "reasoning": "Email validation should cover international domains and edge cases",
+            "suggestedTest": "Test with punycode domains, plus addressing, and subdomains"
+          }
+        ],
+        "coverageEstimate": 35
+      },
+      "refactorings": {
+        "suggestions": [
+          {
+            "type": "extract-function",
+            "location": "sanitizeInput at line 28",
+            "impact": "high",
+            "description": "Extract regex sanitization logic into dedicated functions",
+            "before": "const sanitized = input.replace(/[<>]/g, \"\").replace(/script/gi, \"\");",
+            "after": "const sanitized = stripHtmlTags(input).removeScriptTags();",
+            "benefits": "Improves testability, readability, and reusability of sanitization logic"
+          },
+          {
+            "type": "modernize",
+            "location": "validateEmail at line 10",
+            "impact": "medium",
+            "description": "Use modern regex syntax and optional chaining",
+            "before": "if (user && user.email) { return validateEmail(user.email); }",
+            "after": "return validateEmail(user?.email ?? \"\");",
+            "benefits": "More concise and readable modern TypeScript patterns"
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "totalFiles": 1,
+    "overallScore": 72,
+    "criticalIssues": 1,
+    "highPriorityTests": 2,
+    "refactoringOpportunities": 2
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "category": "security",
+      "description": "Input validation and sanitization need comprehensive security review and test coverage",
+      "files": [
+        "fixtures/clean-code.ts"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "testing",
+      "description": "Add unit tests for email validation with international domains and edge cases",
+      "files": [
+        "fixtures/clean-code.ts"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "testing",
+      "description": "Add security tests for XSS and injection attack patterns in sanitization",
+      "files": [
+        "fixtures/clean-code.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "refactoring",
+      "description": "Break down sanitizeInput function into smaller, focused utility functions",
+      "files": [
+        "fixtures/clean-code.ts"
+      ]
+    }
+  ],
+  "metadata": {
+    "analyzedAt": "2026-10-22T22:08:14.524Z",
+    "duration": 54281,
+    "agentVersions": {
+      "code-quality-analyzer": "1.0.0",
+      "test-coverage-analyzer": "1.0.0",
+      "refactoring-suggester": "1.0.0"
+    }
+  }
+}
