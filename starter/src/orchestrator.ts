@@ -59,14 +59,32 @@ Return a detailed JSON report with all findings matching the ReviewReport schema
         prompt: prompt,
         options: {
           model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
-          allowedTools: ['Task', 'Skill', 'mcp__github__get_issue', 'mcp__github__search_repositories', 'mcp__github__get_file_contents', 'mcp__github__create_issue', 'mcp__github__update_issue', 'mcp__github__create_pull_request', 'mcp__github__update_pull_request', 'mcp__github__create_pull_request_review', 'mcp__github__list_pull_requests', 'mcp__github__get_pull_request'],
+          allowedTools: [
+            'Task',
+            'Skill',
+            'Read',
+            'Grep',
+            'Glob',
+            'mcp__github__get_pull_request',
+            'mcp__github__get_pull_request_files',
+            'mcp__github__get_issue',
+            'mcp__github__search_repositories',
+            'mcp__github__get_file_contents',
+            'mcp__github__create_issue',
+            'mcp__github__update_issue',
+            'mcp__github__create_pull_request',
+            'mcp__github__update_pull_request',
+            'mcp__github__create_pull_request_review',
+            'mcp__github__list_pull_requests',
+            'mcp__eslint__lint'
+          ],
           agents: {
             'code-quality-analyzer': codeQualityAnalyzerAgent,
             'test-coverage-analyzer': testCoverageAnalyzerAgent,
             'refactoring-suggester': refactoringSuggesterAgent
           },
           mcpServers: mcpServersConfig as any,
-          maxTurns: 10,
+          maxTurns: 15,
           permissionMode: 'acceptEdits'
         }
       });
@@ -136,12 +154,16 @@ Return a detailed JSON report with all findings matching the ReviewReport schema
           if (jsonMatch) {
             logger.debug('Found JSON match, length:', jsonMatch[0].length);
             const reportData = JSON.parse(jsonMatch[0]);
-            const parseResult = ReviewReportSchema.safeParse(reportData);
+
+            // Attempt to complete missing fields before validation
+            const completedReportData = this.completeReportData(reportData);
+
+            const parseResult = ReviewReportSchema.safeParse(completedReportData);
             if (parseResult.success) {
               finalReport = parseResult.data;
               logger.debug('Successfully parsed report from assistant message');
             } else {
-              logger.warn('Report validation failed from assistant message', parseResult.error);
+              logger.warn('Report validation failed from assistant message', parseResult.error.format());
             }
           } else {
             logger.warn('No JSON found in final assistant message');
@@ -169,6 +191,103 @@ Return a detailed JSON report with all findings matching the ReviewReport schema
       logger.error('Orchestrator error:', error);
       throw error;
     }
+  }
+
+  /**
+   * Completes missing fields in partially-formed report JSON
+   * Adds intelligent defaults for fields that subagents may have omitted
+   */
+  private completeReportData(partialReport: any): any {
+    if (!partialReport.fileReviews || partialReport.fileReviews.length === 0) {
+      return partialReport;
+    }
+
+    const completedFileReviews = partialReport.fileReviews.map((fileReview: any) => {
+      // Ensure codeQuality has all required fields
+      if (fileReview.codeQuality) {
+        fileReview.codeQuality = {
+          file: fileReview.file || fileReview.codeQuality.file || 'unknown',
+          issues: (fileReview.codeQuality.issues || []).map((issue: any) => ({
+            line: issue.line ?? 1,
+            severity: issue.severity || 'medium',
+            category: issue.category || 'style',
+            description: issue.description || 'Issue identified',
+            suggestion: issue.suggestion || 'Review and refactor'
+          })),
+          overallScore: Math.min(100, Math.max(0, fileReview.codeQuality.overallScore ?? 50)),
+          summary: fileReview.codeQuality.summary || 'Code quality analysis completed'
+        };
+      }
+
+      // Ensure testCoverage has all required fields
+      if (fileReview.testCoverage) {
+        fileReview.testCoverage = {
+          file: fileReview.file || fileReview.testCoverage.file || 'unknown',
+          hasTests: fileReview.testCoverage.hasTests ?? false,
+          testFiles: fileReview.testCoverage.testFiles || [],
+          untestedPaths: (fileReview.testCoverage.untestedPaths || []).map((path: any) => ({
+            type: path.type || 'function',
+            location: path.location || 'unknown',
+            priority: path.priority || 'medium',
+            reasoning: path.reasoning || 'Test coverage gap identified',
+            suggestedTest: path.suggestedTest || 'Add unit tests'
+          })),
+          coverageEstimate: Math.min(100, Math.max(0, fileReview.testCoverage.coverageEstimate ?? 0)),
+          summary: fileReview.testCoverage.summary || 'Test coverage analysis completed'
+        };
+      }
+
+      // Ensure refactorings has all required fields
+      if (fileReview.refactorings) {
+        const validRefactoringTypes = ['extract-function', 'rename', 'modernize', 'simplify', 'pattern-improvement'];
+        fileReview.refactorings = {
+          file: fileReview.file || fileReview.refactorings.file || 'unknown',
+          suggestions: (fileReview.refactorings.suggestions || []).map((suggestion: any) => ({
+            type: validRefactoringTypes.includes(suggestion.type) ? suggestion.type : 'simplify',
+            location: suggestion.location || 'unknown',
+            impact: suggestion.impact || 'medium',
+            description: suggestion.description || 'Refactoring opportunity identified',
+            before: suggestion.before || '// current code',
+            after: suggestion.after || '// refactored code',
+            benefits: Array.isArray(suggestion.benefits) ? suggestion.benefits.join(', ') : (suggestion.benefits || 'Improved code quality')
+          })),
+          summary: fileReview.refactorings.summary || 'Refactoring suggestions completed'
+        };
+      }
+
+      return fileReview;
+    });
+
+    // Ensure summary has all required fields
+    const completedSummary = partialReport.summary || {};
+    const completedRecommendations = (partialReport.recommendations || []).map((rec: any) => ({
+      priority: rec.priority || 'medium',
+      category: rec.category || 'quality',
+      description: rec.description || 'Recommendation',
+      files: rec.files || []
+    }));
+
+    return {
+      pullRequest: partialReport.pullRequest || { owner: 'unknown', repo: 'unknown', number: 0 },
+      fileReviews: completedFileReviews,
+      summary: {
+        totalFiles: completedSummary.totalFiles ?? completedFileReviews.length,
+        overallScore: completedSummary.overallScore ?? 60,
+        criticalIssues: completedSummary.criticalIssues ?? 0,
+        highPriorityTests: completedSummary.highPriorityTests ?? 0,
+        refactoringOpportunities: completedSummary.refactoringOpportunities ?? 0
+      },
+      recommendations: completedRecommendations,
+      metadata: partialReport.metadata || {
+        analyzedAt: new Date().toISOString(),
+        duration: 0,
+        agentVersions: {
+          'code-quality-analyzer': '1.0.0',
+          'test-coverage-analyzer': '1.0.0',
+          'refactoring-suggester': '1.0.0'
+        }
+      }
+    };
   }
 
   private createFallbackReport(

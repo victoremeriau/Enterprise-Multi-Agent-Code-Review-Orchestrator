@@ -96,6 +96,13 @@ async function main() {
       prNumber
     );
 
+    // Validate that we got actual analysis results, not just fallback data
+    if (report.fileReviews.length === 0) {
+      throw new Error(
+        'Analysis completed but produced no file reviews. Check MCP tools, Task delegation, and subagent tool configuration before generating reports.'
+      );
+    }
+
     console.log('✓ Analysis complete!');
     console.log('');
 

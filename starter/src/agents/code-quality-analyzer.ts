@@ -11,5 +11,5 @@ export const codeQualityAnalyzerAgent: AgentDefinition = {
   description: 'Analyzes code for security vulnerabilities, performance issues, and maintainability concerns. Uses static analysis and best practice evaluation to identify critical quality issues.',
   prompt: codeQualityAnalyzerPrompt,
   model: 'inherit',
-  tools: ['Skill']
+  tools: ['Read', 'Grep', 'Glob', 'Skill']
 };
